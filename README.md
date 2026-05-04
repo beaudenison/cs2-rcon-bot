@@ -84,6 +84,12 @@ Setup wizard sessions are persisted and expire after 30 minutes by default. You 
 
 If your server is slow to answer RCON commands, tune `RCON_COMMAND_TIMEOUT_MS` (default `5000`). This prevents Discord interactions from hanging forever when a server does not respond cleanly.
 
+Status behavior defaults to on-demand mode:
+
+- `AUTO_STATUS_REFRESH=false` disables background polling.
+- `REFRESH_STATUS_AFTER_ACTION=false` avoids status polling after each control action.
+- Press the control panel `Refresh Status` button anytime to fetch live status on demand.
+
 ## Discord Bot Creation
 
 The installer itself explains these steps, but the short version is:

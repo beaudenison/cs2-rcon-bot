@@ -143,15 +143,29 @@ function buildConnectUrl(guildConfig) {
   return `https://steamcommunity.com/linkfilter/?url=${encodeURIComponent(steamConnect)}`;
 }
 
-function buildControlEmbed(guildConfig, status, connected) {
+function buildControlEmbed(guildConfig, status, statusState) {
+  const connectionText =
+    statusState === "online"
+      ? "Online"
+      : statusState === "skipped"
+        ? "Not Queried (on-demand mode)"
+        : "Offline / Unable to reach RCON";
+
+  const color =
+    statusState === "online"
+      ? 0x06d6a0
+      : statusState === "skipped"
+        ? 0x118ab2
+        : 0xef476f;
+
   return new EmbedBuilder()
     .setTitle("Counter-Strike 2 Control Center")
-    .setColor(connected ? 0x06d6a0 : 0xef476f)
+    .setColor(color)
     .setDescription("Use the menus below to control your CS2 server through RCON.")
     .addFields(
       {
         name: "Connection",
-        value: connected ? "Online" : "Offline / Unable to reach RCON",
+        value: connectionText,
         inline: true
       },
       {
@@ -279,6 +293,11 @@ function hasControlPermission(member, guildConfig) {
 }
 
 async function postOrUpdateControlCenter(guildId) {
+  return postOrUpdateControlCenterWithOptions(guildId, { queryStatus: true });
+}
+
+async function postOrUpdateControlCenterWithOptions(guildId, options = {}) {
+  const queryStatus = options.queryStatus !== false;
   const guildConfig = store.get(guildId);
   if (!guildConfig) {
     return;
@@ -289,17 +308,21 @@ async function postOrUpdateControlCenter(guildId) {
     return;
   }
 
-  let status = null;
-  let connected = false;
+  let status = guildConfig.lastStatus || { updatedAt: new Date().toISOString() };
+  let statusState = "skipped";
 
-  try {
-    status = await queryServerStatus(guildConfig);
-    connected = true;
-  } catch {
-    status = { updatedAt: new Date().toISOString() };
+  if (queryStatus) {
+    try {
+      status = await queryServerStatus(guildConfig);
+      statusState = "online";
+      store.upsert(guildId, { lastStatus: status });
+    } catch {
+      statusState = "offline";
+      status = { ...(guildConfig.lastStatus || {}), updatedAt: new Date().toISOString() };
+    }
   }
 
-  const embed = buildControlEmbed(guildConfig, status, connected);
+  const embed = buildControlEmbed(guildConfig, status, statusState);
   const components = buildControlComponents(guildConfig);
 
   if (!guildConfig.controlMessageId) {
@@ -326,14 +349,16 @@ async function registerSlashCommands() {
 client.once("ready", async () => {
   await registerSlashCommands();
 
-  setInterval(async () => {
-    const guilds = store.readAll();
-    for (const guildId of Object.keys(guilds)) {
-      await postOrUpdateControlCenter(guildId).catch((error) => {
-        console.error(`Failed to refresh control center for guild ${guildId}:`, error);
-      });
-    }
-  }, Math.max(15, config.statusRefreshSeconds) * 1000);
+  if (config.autoStatusRefresh) {
+    setInterval(async () => {
+      const guilds = store.readAll();
+      for (const guildId of Object.keys(guilds)) {
+        await postOrUpdateControlCenterWithOptions(guildId, { queryStatus: true }).catch((error) => {
+          console.error(`Failed to refresh control center for guild ${guildId}:`, error);
+        });
+      }
+    }, Math.max(15, config.statusRefreshSeconds) * 1000);
+  }
 });
 
 client.on("interactionCreate", async (interaction) => {
@@ -756,7 +781,7 @@ client.on("interactionCreate", async (interaction) => {
     setupSessions.delete(key);
 
     try {
-      await postOrUpdateControlCenter(guildId);
+      await postOrUpdateControlCenterWithOptions(guildId, { queryStatus: false });
       await interaction.editReply({
         content: `Saved. Control center is now configured for <#${savedConfig.controlChannelId}>.`,
       });
@@ -908,7 +933,7 @@ client.on("interactionCreate", async (interaction) => {
     setupSessions.delete(key);
 
     try {
-      await postOrUpdateControlCenter(guildId);
+      await postOrUpdateControlCenterWithOptions(guildId, { queryStatus: false });
       await interaction.editReply({
         content: `Setup completed. Control center created in <#${savedConfig.controlChannelId}>.`,
       });
@@ -937,7 +962,7 @@ client.on("interactionCreate", async (interaction) => {
 
     await interaction.deferReply({ ephemeral: true });
 
-    await postOrUpdateControlCenter(guildId).catch(() => undefined);
+    await postOrUpdateControlCenterWithOptions(guildId, { queryStatus: true }).catch(() => undefined);
     await interaction.editReply({ content: "Status refreshed." });
     return;
   }
@@ -968,7 +993,9 @@ client.on("interactionCreate", async (interaction) => {
 
     try {
       await runCommands(guildConfig, commandsToRun);
-      await postOrUpdateControlCenter(guildId).catch(() => undefined);
+      await postOrUpdateControlCenterWithOptions(guildId, {
+        queryStatus: config.refreshStatusAfterAction
+      }).catch(() => undefined);
       await interaction.editReply({
         content: `Executed ${commandsToRun.length} command(s): ${commandsToRun.join(", ")}`,
       });

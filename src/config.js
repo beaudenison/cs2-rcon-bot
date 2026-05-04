@@ -50,6 +50,8 @@ function required(name) {
 function getConfig() {
   const encryptRconPasswords = parseBool(process.env.ENCRYPT_RCON_PASSWORDS, false);
   const encryptionKey = parseEncryptionKey(process.env.ENCRYPTION_KEY || "");
+  const autoStatusRefresh = parseBool(process.env.AUTO_STATUS_REFRESH, false);
+  const refreshStatusAfterAction = parseBool(process.env.REFRESH_STATUS_AFTER_ACTION, false);
 
   if (encryptRconPasswords && !encryptionKey) {
     throw new Error("ENCRYPT_RCON_PASSWORDS is enabled, but ENCRYPTION_KEY is missing.");
@@ -60,6 +62,8 @@ function getConfig() {
     discordClientId: required("DISCORD_CLIENT_ID"),
     statusRefreshSeconds: Number(process.env.STATUS_REFRESH_SECONDS || 30),
     dataDir: path.resolve(process.cwd(), process.env.DATA_DIR || "./data"),
+    autoStatusRefresh,
+    refreshStatusAfterAction,
     encryptRconPasswords,
     encryptionKey
   };
