@@ -1,0 +1,9 @@
+services:
+  cs2-rcon-bot:
+    build: .
+    container_name: cs2-rcon-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,26 @@
+{
+  "name": "cs2-rcon-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for managing Counter-Strike 2 servers over RCON",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "discord",
+    "cs2",
+    "rcon",
+    "counter-strike",
+    "docker"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.2",
+    "dotenv": "^16.4.7",
+    "rcon-client": "^4.2.5"
+  }
+}
