@@ -77,8 +77,7 @@ The terminal wizard handles setup in this order:
 2. Discord bot creation guidance
 3. Discord bot token
 4. Discord application ID
-5. Status refresh interval
-6. Optional encrypted-at-rest password storage
+5. Optional encrypted-at-rest password storage
 
 Setup wizard sessions are persisted and expire after 30 minutes by default. You can tune this with `SETUP_SESSION_TTL_MINUTES` in `.env`.
 
@@ -89,6 +88,7 @@ Status behavior defaults to on-demand mode:
 - `AUTO_STATUS_REFRESH=false` disables background polling.
 - `REFRESH_STATUS_AFTER_ACTION=false` avoids status polling after each control action.
 - Press the control panel `Refresh Status` button anytime to fetch live status on demand.
+- The installer writes these defaults automatically, so it no longer asks about refresh timing.
 
 ## Discord Bot Creation
 

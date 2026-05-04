@@ -96,6 +96,21 @@ function staleSetupMessage() {
   return "This setup wizard is outdated. Please use the newest /setup message.";
 }
 
+async function refreshControlCenterAsync(guildId, interaction, options = {}) {
+  try {
+    await postOrUpdateControlCenterWithOptions(guildId, options);
+  } catch (error) {
+    console.error(`Failed to create/update control center for guild ${guildId}:`, error);
+
+    if (interaction) {
+      await interaction.followUp({
+        content: `Control center update failed: ${error.message}`,
+        ephemeral: true
+      }).catch(() => undefined);
+    }
+  }
+}
+
 function buildSetupEmbed(channelId) {
   return new EmbedBuilder()
     .setTitle("CS2 Bot Setup Wizard")
@@ -780,16 +795,11 @@ client.on("interactionCreate", async (interaction) => {
 
     setupSessions.delete(key);
 
-    try {
-      await postOrUpdateControlCenterWithOptions(guildId, { queryStatus: false });
-      await interaction.editReply({
-        content: `Saved. Control center is now configured for <#${savedConfig.controlChannelId}>.`,
-      });
-    } catch (error) {
-      await interaction.editReply({
-        content: `Settings saved, but refreshing the control center failed: ${error.message}`,
-      });
-    }
+    await interaction.editReply({
+      content: `Saved. Control center is now configured for <#${savedConfig.controlChannelId}>.`,
+    });
+
+    void refreshControlCenterAsync(guildId, interaction, { queryStatus: false });
 
     return;
   }
@@ -932,16 +942,11 @@ client.on("interactionCreate", async (interaction) => {
 
     setupSessions.delete(key);
 
-    try {
-      await postOrUpdateControlCenterWithOptions(guildId, { queryStatus: false });
-      await interaction.editReply({
-        content: `Setup completed. Control center created in <#${savedConfig.controlChannelId}>.`,
-      });
-    } catch (error) {
-      await interaction.editReply({
-        content: `Setup saved, but creating the control center failed: ${error.message}`,
-      });
-    }
+    await interaction.editReply({
+      content: `Setup completed. Control center is being created in <#${savedConfig.controlChannelId}>.`,
+    });
+
+    void refreshControlCenterAsync(guildId, interaction, { queryStatus: false });
 
     return;
   }
