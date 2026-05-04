@@ -80,6 +80,8 @@ The terminal wizard handles setup in this order:
 5. Status refresh interval
 6. Optional encrypted-at-rest password storage
 
+Setup wizard sessions are persisted and expire after 30 minutes by default. You can tune this with `SETUP_SESSION_TTL_MINUTES` in `.env`.
+
 ## Discord Bot Creation
 
 The installer itself explains these steps, but the short version is:

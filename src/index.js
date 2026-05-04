@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const crypto = require("node:crypto");
+
 const {
   ActionRowBuilder,
   ButtonBuilder,
@@ -28,6 +30,7 @@ const {
   SETTINGS_AND_PRESETS
 } = require("./constants");
 const { queryServerStatus, runCommands } = require("./rcon");
+const { SetupSessionStore, buildSessionKey } = require("./setupSessions");
 const { GuildConfigStore } = require("./storage");
 
 const config = getConfig();
@@ -36,7 +39,8 @@ const store = new GuildConfigStore(config.dataDir, {
   encryptionKey: config.encryptionKey
 });
 
-const setupSessions = new Map();
+const setupSessionTtlMinutes = Number(process.env.SETUP_SESSION_TTL_MINUTES || 30);
+const setupSessions = new SetupSessionStore(config.dataDir, setupSessionTtlMinutes);
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
@@ -69,8 +73,27 @@ const commands = [
     .toJSON()
 ];
 
-function sessionKey(guildId, userId) {
-  return `${guildId}:${userId}`;
+function makeSetupId() {
+  return crypto.randomBytes(6).toString("hex");
+}
+
+function getSetupSession(guildId, ownerId, setupId) {
+  const key = buildSessionKey(guildId, ownerId);
+  const session = setupSessions.get(key);
+
+  if (!session || session.mode !== "setup") {
+    return { error: "expired" };
+  }
+
+  if (!setupId || session.setupId !== setupId) {
+    return { error: "stale" };
+  }
+
+  return { session, key };
+}
+
+function staleSetupMessage() {
+  return "This setup wizard is outdated. Please use the newest /setup message.";
 }
 
 function buildSetupEmbed(channelId) {
@@ -316,18 +339,21 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand() && interaction.commandName === "setup") {
     const channel = interaction.options.getChannel("channel", true);
-    const key = sessionKey(interaction.guildId, interaction.user.id);
+    const key = buildSessionKey(interaction.guildId, interaction.user.id);
+    const setupId = makeSetupId();
 
     setupSessions.set(key, {
       guildId: interaction.guildId,
       ownerId: interaction.user.id,
+      setupId,
+      mode: "setup",
       channelId: channel.id,
       allowedRoleIds: [],
       allowedUserIds: [interaction.user.id]
     });
 
     const startButton = new ButtonBuilder()
-      .setCustomId(`setup:start:${interaction.guildId}:${interaction.user.id}`)
+      .setCustomId(`setup:start:${interaction.guildId}:${interaction.user.id}:${setupId}`)
       .setStyle(ButtonStyle.Primary)
       .setLabel("Start Setup");
 
@@ -356,7 +382,7 @@ client.on("interactionCreate", async (interaction) => {
 
     const newChannel = interaction.options.getChannel("channel", false);
     const targetChannelId = newChannel?.id || existingConfig.controlChannelId;
-    const key = sessionKey(interaction.guildId, interaction.user.id);
+    const key = buildSessionKey(interaction.guildId, interaction.user.id);
 
     setupSessions.set(key, {
       guildId: interaction.guildId,
@@ -403,7 +429,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (interaction.isButton() && interaction.customId.startsWith("setup:start:")) {
-    const [, , guildId, ownerId] = interaction.customId.split(":");
+    const [, , guildId, ownerId, setupId] = interaction.customId.split(":");
 
     if (interaction.guildId !== guildId) {
       await interaction.reply({ content: "This setup button is for another server.", ephemeral: true });
@@ -418,8 +444,19 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    const setupCheck = getSetupSession(guildId, ownerId, setupId);
+    if (setupCheck.error === "stale") {
+      await interaction.reply({ content: staleSetupMessage(), ephemeral: true });
+      return;
+    }
+
+    if (setupCheck.error === "expired") {
+      await interaction.reply({ content: "Setup session expired. Please run /setup again.", ephemeral: true });
+      return;
+    }
+
     const modal = new ModalBuilder()
-      .setCustomId(`setup:modal:${guildId}:${ownerId}`)
+      .setCustomId(`setup:modal:${guildId}:${ownerId}:${setupId}`)
       .setTitle("CS2 Server Connection");
 
     const hostInput = new TextInputBuilder()
@@ -453,17 +490,25 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (interaction.isModalSubmit() && interaction.customId.startsWith("setup:modal:")) {
-    const [, , guildId, ownerId] = interaction.customId.split(":");
-    const key = sessionKey(guildId, ownerId);
-    const existing = setupSessions.get(key);
+    const [, , guildId, ownerId, setupId] = interaction.customId.split(":");
+    const setupCheck = getSetupSession(guildId, ownerId, setupId);
+    if (setupCheck.error === "stale") {
+      await interaction.reply({
+        content: staleSetupMessage(),
+        ephemeral: true
+      });
+      return;
+    }
 
-    if (!existing) {
+    if (setupCheck.error === "expired") {
       await interaction.reply({
         content: "Setup session expired. Please run /setup again.",
         ephemeral: true
       });
       return;
     }
+
+    const { key, session: existing } = setupCheck;
 
     const rconHost = interaction.fields.getTextInputValue("rcon_host").trim();
     const rconPort = interaction.fields.getTextInputValue("rcon_port").trim();
@@ -477,19 +522,19 @@ client.on("interactionCreate", async (interaction) => {
     });
 
     const roleSelect = new RoleSelectMenuBuilder()
-      .setCustomId(`setup:roles:${guildId}:${ownerId}`)
+      .setCustomId(`setup:roles:${guildId}:${ownerId}:${setupId}`)
       .setPlaceholder("Select roles that can control the server")
       .setMinValues(0)
       .setMaxValues(10);
 
     const userSelect = new UserSelectMenuBuilder()
-      .setCustomId(`setup:users:${guildId}:${ownerId}`)
+      .setCustomId(`setup:users:${guildId}:${ownerId}:${setupId}`)
       .setPlaceholder("Select specific users that can control the server")
       .setMinValues(0)
       .setMaxValues(10);
 
     const completeButton = new ButtonBuilder()
-      .setCustomId(`setup:complete:${guildId}:${ownerId}`)
+      .setCustomId(`setup:complete:${guildId}:${ownerId}:${setupId}`)
       .setStyle(ButtonStyle.Success)
       .setLabel("Complete Setup");
 
@@ -519,7 +564,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isButton() && interaction.customId.startsWith("edit:connection:")) {
     const [, , guildId, ownerId] = interaction.customId.split(":");
-    const key = sessionKey(guildId, ownerId);
+    const key = buildSessionKey(guildId, ownerId);
     const current = setupSessions.get(key);
 
     if (!current || current.mode !== "edit") {
@@ -575,7 +620,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isButton() && interaction.customId.startsWith("edit:permissions:")) {
     const [, , guildId, ownerId] = interaction.customId.split(":");
-    const key = sessionKey(guildId, ownerId);
+    const key = buildSessionKey(guildId, ownerId);
     const current = setupSessions.get(key);
 
     if (!current || current.mode !== "edit") {
@@ -641,7 +686,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isModalSubmit() && interaction.customId.startsWith("edit:modal:")) {
     const [, , guildId, ownerId] = interaction.customId.split(":");
-    const key = sessionKey(guildId, ownerId);
+    const key = buildSessionKey(guildId, ownerId);
     const current = setupSessions.get(key);
 
     if (!current || current.mode !== "edit") {
@@ -673,7 +718,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isButton() && interaction.customId.startsWith("edit:save:")) {
     const [, , guildId, ownerId] = interaction.customId.split(":");
-    const key = sessionKey(guildId, ownerId);
+    const key = buildSessionKey(guildId, ownerId);
     const current = setupSessions.get(key);
 
     if (!current || current.mode !== "edit") {
@@ -728,7 +773,7 @@ client.on("interactionCreate", async (interaction) => {
     (interaction.isRoleSelectMenu() || interaction.isUserSelectMenu()) &&
     interaction.customId.startsWith("setup:")
   ) {
-    const [, kind, guildId, ownerId] = interaction.customId.split(":");
+    const [, kind, guildId, ownerId, setupId] = interaction.customId.split(":");
 
     if (interaction.user.id !== ownerId) {
       await interaction.reply({
@@ -738,15 +783,24 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    const key = sessionKey(guildId, ownerId);
-    const existing = setupSessions.get(key);
-    if (!existing) {
+    const setupCheck = getSetupSession(guildId, ownerId, setupId);
+    if (setupCheck.error === "stale") {
+      await interaction.reply({
+        content: staleSetupMessage(),
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (setupCheck.error === "expired") {
       await interaction.reply({
         content: "Setup session expired. Please run /setup again.",
         ephemeral: true
       });
       return;
     }
+
+    const { key, session: existing } = setupCheck;
 
     if (kind === "roles") {
       existing.allowedRoleIds = [...interaction.values];
@@ -776,7 +830,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    const key = sessionKey(guildId, ownerId);
+    const key = buildSessionKey(guildId, ownerId);
     const existing = setupSessions.get(key);
     if (!existing || existing.mode !== "edit") {
       await interaction.reply({
@@ -801,7 +855,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (interaction.isButton() && interaction.customId.startsWith("setup:complete:")) {
-    const [, , guildId, ownerId] = interaction.customId.split(":");
+    const [, , guildId, ownerId, setupId] = interaction.customId.split(":");
 
     if (interaction.user.id !== ownerId) {
       await interaction.reply({
@@ -811,12 +865,28 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    const key = sessionKey(guildId, ownerId);
-    const current = setupSessions.get(key);
+    const setupCheck = getSetupSession(guildId, ownerId, setupId);
+    if (setupCheck.error === "stale") {
+      await interaction.reply({
+        content: staleSetupMessage(),
+        ephemeral: true
+      });
+      return;
+    }
 
-    if (!current || !current.rconHost || !current.rconPort || !current.rconPassword) {
+    if (setupCheck.error === "expired") {
       await interaction.reply({
         content: "Setup session expired or missing values. Please run /setup again.",
+        ephemeral: true
+      });
+      return;
+    }
+
+    const { key, session: current } = setupCheck;
+
+    if (!current.rconHost || !current.rconPort || !current.rconPassword) {
+      await interaction.reply({
+        content: "Setup session is missing connection values. Start again with /setup and use the newest setup message.",
         ephemeral: true
       });
       return;
