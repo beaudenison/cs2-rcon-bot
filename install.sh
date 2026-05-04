@@ -5,6 +5,7 @@ APP_NAME="cs2-rcon-bot"
 INSTALL_DIR_DEFAULT="$HOME/$APP_NAME"
 IMAGE_DEFAULT="ghcr.io/beaudenison/cs2-rcon-bot:latest"
 DISCORD_PORTAL_URL="https://discord.com/developers/applications"
+TTY_DEVICE="/dev/tty"
 
 print_header() {
   echo
@@ -37,7 +38,7 @@ open_url() {
 
 pause_for_enter() {
   echo
-  read -r -p "Press Enter to continue..." _
+  read -r -p "Press Enter to continue..." _ <"$TTY_DEVICE"
 }
 
 show_discord_bot_guide() {
@@ -82,7 +83,7 @@ prompt_required() {
   local value=""
 
   while [[ -z "$value" ]]; do
-    read -r -p "$label: " value
+    read -r -p "$label: " value <"$TTY_DEVICE"
     value="$(echo "$value" | sed 's/^ *//;s/ *$//')"
   done
 
@@ -94,7 +95,7 @@ prompt_default() {
   local default_value="$2"
   local value=""
 
-  read -r -p "$label [$default_value]: " value
+  read -r -p "$label [$default_value]: " value <"$TTY_DEVICE"
   value="$(echo "$value" | sed 's/^ *//;s/ *$//')"
 
   if [[ -z "$value" ]]; then
