@@ -4,6 +4,7 @@ set -euo pipefail
 APP_NAME="cs2-rcon-bot"
 INSTALL_DIR_DEFAULT="$HOME/$APP_NAME"
 IMAGE_DEFAULT="ghcr.io/beaudenison/cs2-rcon-bot:latest"
+DISCORD_PORTAL_URL="https://discord.com/developers/applications"
 
 print_header() {
   echo
@@ -11,6 +12,47 @@ print_header() {
   echo " CS2 RCON Bot One-Command Installer"
   echo "========================================"
   echo
+}
+
+open_url() {
+  local url="$1"
+
+  if [[ -n "${BROWSER:-}" ]] && command -v "$BROWSER" >/dev/null 2>&1; then
+    "$BROWSER" "$url" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  if command -v open >/dev/null 2>&1; then
+    open "$url" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  return 1
+}
+
+pause_for_enter() {
+  echo
+  read -r -p "Press Enter to continue..." _
+}
+
+show_discord_bot_guide() {
+  echo
+  echo "Discord bot setup guide"
+  echo "1. Open: $DISCORD_PORTAL_URL"
+  echo "2. Click 'New Application' and give it a name."
+  echo "3. In 'General Information', copy the Application ID."
+  echo "4. In 'Bot', click 'Add Bot'."
+  echo "5. In 'Bot', copy or reset the bot token."
+  echo "6. In 'OAuth2 -> URL Generator':"
+  echo "   - Scopes: bot, applications.commands"
+  echo "   - Permissions: View Channels, Send Messages, Embed Links, Use Slash Commands, Read Message History"
+  echo "7. Open the generated invite URL and invite the bot to your server."
+  echo "8. Come back here and paste the Application ID and bot token when asked."
 }
 
 find_compose_cmd() {
@@ -97,7 +139,20 @@ INSTALL_DIR="$(prompt_default "Install directory" "$INSTALL_DIR_DEFAULT")"
 IMAGE="$(prompt_default "Docker image" "$IMAGE_DEFAULT")"
 
 echo
-echo "Discord App credentials"
+show_discord_bot_guide
+OPEN_REPLY="$(prompt_default "Open Discord Developer Portal in your browser now? (yes/no)" "yes")"
+OPEN_REPLY="$(echo "$OPEN_REPLY" | tr '[:upper:]' '[:lower:]')"
+if [[ "$OPEN_REPLY" == "yes" || "$OPEN_REPLY" == "y" ]]; then
+  if open_url "$DISCORD_PORTAL_URL"; then
+    echo "Opened Discord Developer Portal in your browser."
+  else
+    echo "Could not open a browser automatically. Open this URL manually: $DISCORD_PORTAL_URL"
+  fi
+fi
+
+pause_for_enter
+
+echo "Discord app credentials"
 DISCORD_TOKEN="$(prompt_required "DISCORD_TOKEN (bot token)")"
 DISCORD_CLIENT_ID="$(prompt_required "DISCORD_CLIENT_ID (application id)")"
 

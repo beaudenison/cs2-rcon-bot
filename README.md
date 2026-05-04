@@ -40,134 +40,102 @@ The bot then posts a persistent Control Center embed with live server status and
 
 ## Requirements
 
-- Node.js 20+ (if running locally)
-- Docker + Docker Compose (recommended)
-- A Discord application and bot token
+- Docker + Docker Compose
+- A Discord account that can create a bot in the Discord Developer Portal
 - RCON enabled on your CS2 server
 
-## Quick Start (Self-Host with Docker)
+## Install
 
-1. Clone the repository.
-2. Copy environment template:
-
-```bash
-cp .env.example .env
-```
-
-3. Fill in `.env`:
-
-```env
-DISCORD_TOKEN=your_discord_bot_token
-DISCORD_CLIENT_ID=your_discord_application_client_id
-STATUS_REFRESH_SECONDS=30
-DATA_DIR=./data
-ENCRYPT_RCON_PASSWORDS=false
-ENCRYPTION_KEY=
-```
-
-4. Build and start:
-
-```bash
-docker compose up -d --build
-```
-
-5. Check logs:
-
-```bash
-docker compose logs -f
-```
-
-Persistent guild configs are stored in `./data/guild-config.json` via a mounted volume.
-
-## Easiest Docker Install (Copy/Paste)
-
-If someone just wants to try it quickly:
-
-```bash
-git clone https://github.com/beaudenison/cs2-rcon-bot.git
-cd cs2-rcon-bot
-cp .env.example .env
-# edit .env with token + client id
-docker compose up -d --build
-docker compose logs -f
-```
-
-## One-Command Install (No Git Clone)
-
-If you want users to install with one command and follow a terminal wizard:
+Use this single command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/beaudenison/cs2-rcon-bot/main/install.sh | bash
 ```
 
-What this does:
+The installer wizard will:
 
+- Walk you through creating a Discord bot
 - Prompts for bot token and client ID
 - Optionally enables encrypted-at-rest RCON password storage
 - Writes `.env` and `docker-compose.yml` to `~/cs2-rcon-bot`
 - Pulls the prebuilt Docker image from GHCR
 - Starts the container automatically
 
-This works best after your GitHub Actions image publish workflow has produced `ghcr.io/beaudenison/cs2-rcon-bot:latest`.
-
-You can also run the installer with a custom target directory or image:
+After install:
 
 ```bash
-CS2_RCON_BOT_DIR=/opt/cs2-rcon-bot \
-CS2_RCON_BOT_IMAGE=ghcr.io/beaudenison/cs2-rcon-bot:latest \
-curl -fsSL https://raw.githubusercontent.com/beaudenison/cs2-rcon-bot/main/install.sh | bash
+cd ~/cs2-rcon-bot && docker compose logs -f
 ```
 
-Stop/restart commands:
+Persistent guild configs are stored in `~/cs2-rcon-bot/data/guild-config.json`.
 
-```bash
-docker compose down
-docker compose up -d
+## What The Wizard Asks For
+
+The terminal wizard handles setup in this order:
+
+1. Install location
+2. Discord bot creation guidance
+3. Discord bot token
+4. Discord application ID
+5. Status refresh interval
+6. Optional encrypted-at-rest password storage
+
+## Discord Bot Creation
+
+The installer itself explains these steps, but the short version is:
+
+1. Create a Discord application.
+2. Add a bot user.
+3. Copy the Application ID.
+4. Copy the bot token.
+5. Invite the bot using scopes `bot` and `applications.commands`.
+
+Developer Portal:
+
+```text
+https://discord.com/developers/applications
 ```
-
-## Local Development (No Docker)
-
-```bash
-npm install
-cp .env.example .env
-# edit .env
-npm start
-```
-
-## Discord Bot Setup (Step-by-Step)
-
-Use these exact steps in the Discord Developer Portal so new users can self-host quickly.
-
-1. Go to https://discord.com/developers/applications
-2. Click **New Application**.
-3. Enter a name (for example, `CS2 RCON Bot`) and click **Create**.
-4. In **General Information**:
-	- Copy **Application ID** and set it as `DISCORD_CLIENT_ID` in `.env`.
-5. In **Bot** (left sidebar):
-	- Click **Add Bot** and confirm.
-	- Under **Token**, click **Reset Token** (or **Copy**) and set it as `DISCORD_TOKEN` in `.env`.
-	- Keep this token secret. Anyone with it can control your bot.
-6. In **Bot** settings, enable these toggles:
-	- `PUBLIC BOT` enabled (if you want other servers to invite your hosted bot)
-	- `MESSAGE CONTENT INTENT` is not required for this project
-	- `SERVER MEMBERS INTENT` is not required for this project
-	- `PRESENCE INTENT` is not required for this project
-7. In **OAuth2 -> URL Generator**:
-	- Select scopes: `bot` and `applications.commands`
-	- Select bot permissions (recommended baseline):
-		- View Channels
-		- Send Messages
-		- Embed Links
-		- Use Slash Commands
-		- Read Message History
-	- Copy generated URL and open it to invite the bot to your server.
-8. After invite, run your container and wait up to a minute for global slash command propagation.
-9. In your Discord server, run `/setup` to finish guild-specific CS2 setup.
 
 Invite URL template:
 
 ```text
 https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot%20applications.commands&permissions=274877926400
+```
+
+## Running And Managing
+
+View logs:
+
+```bash
+cd ~/cs2-rcon-bot && docker compose logs -f
+```
+
+Restart:
+
+```bash
+cd ~/cs2-rcon-bot && docker compose restart
+```
+
+Stop:
+
+```bash
+cd ~/cs2-rcon-bot && docker compose down
+```
+
+Start again:
+
+```bash
+cd ~/cs2-rcon-bot && docker compose up -d
+```
+
+## For Developers Only
+
+If you want to work on the source directly instead of using the installer:
+
+```bash
+npm install
+cp .env.example .env
+npm start
 ```
 
 ## How Server Admins Use It
