@@ -115,6 +115,11 @@ function buildEditSetupEmbed(guildConfig) {
     );
 }
 
+function buildConnectUrl(guildConfig) {
+  const steamConnect = `steam://connect/${guildConfig.rconHost}:${guildConfig.rconPort}`;
+  return `https://steamcommunity.com/linkfilter/?url=${encodeURIComponent(steamConnect)}`;
+}
+
 function buildControlEmbed(guildConfig, status, connected) {
   return new EmbedBuilder()
     .setTitle("Counter-Strike 2 Control Center")
@@ -154,6 +159,11 @@ function buildControlEmbed(guildConfig, status, connected) {
           ? guildConfig.allowedUserIds.map((id) => `<@${id}>`).join(", ")
           : "None",
         inline: false
+      },
+      {
+        name: "Connect Command",
+        value: `steam://connect/${guildConfig.rconHost}:${guildConfig.rconPort}`,
+        inline: false
       }
     )
     .setFooter({ text: `Last Updated: ${new Date(status?.updatedAt || Date.now()).toLocaleString()}` });
@@ -183,7 +193,7 @@ function buildControlComponents(guildConfig) {
   const connectButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Link)
     .setLabel("Connect to Server")
-    .setURL(`steam://connect/${guildConfig.rconHost}:${guildConfig.rconPort}`);
+    .setURL(buildConnectUrl(guildConfig));
 
   const refreshButton = new ButtonBuilder()
     .setStyle(ButtonStyle.Secondary)
@@ -296,7 +306,9 @@ client.once("ready", async () => {
   setInterval(async () => {
     const guilds = store.readAll();
     for (const guildId of Object.keys(guilds)) {
-      await postOrUpdateControlCenter(guildId).catch(() => undefined);
+      await postOrUpdateControlCenter(guildId).catch((error) => {
+        console.error(`Failed to refresh control center for guild ${guildId}:`, error);
+      });
     }
   }, Math.max(15, config.statusRefreshSeconds) * 1000);
 });
@@ -695,12 +707,19 @@ client.on("interactionCreate", async (interaction) => {
     });
 
     setupSessions.delete(key);
-    await postOrUpdateControlCenter(guildId).catch(() => undefined);
 
-    await interaction.reply({
-      content: `Saved. Control center is now configured for <#${savedConfig.controlChannelId}>.`,
-      ephemeral: true
-    });
+    try {
+      await postOrUpdateControlCenter(guildId);
+      await interaction.reply({
+        content: `Saved. Control center is now configured for <#${savedConfig.controlChannelId}>.`,
+        ephemeral: true
+      });
+    } catch (error) {
+      await interaction.reply({
+        content: `Settings saved, but refreshing the control center failed: ${error.message}`,
+        ephemeral: true
+      });
+    }
 
     return;
   }
@@ -816,12 +835,18 @@ client.on("interactionCreate", async (interaction) => {
 
     setupSessions.delete(key);
 
-    await postOrUpdateControlCenter(guildId).catch(() => undefined);
-
-    await interaction.reply({
-      content: `Setup completed. Control center created in <#${savedConfig.controlChannelId}>.`,
-      ephemeral: true
-    });
+    try {
+      await postOrUpdateControlCenter(guildId);
+      await interaction.reply({
+        content: `Setup completed. Control center created in <#${savedConfig.controlChannelId}>.`,
+        ephemeral: true
+      });
+    } catch (error) {
+      await interaction.reply({
+        content: `Setup saved, but creating the control center failed: ${error.message}`,
+        ephemeral: true
+      });
+    }
 
     return;
   }
