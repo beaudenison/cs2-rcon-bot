@@ -108,20 +108,35 @@ cp .env.example .env
 npm start
 ```
 
-## Discord Bot Setup
+## Discord Bot Setup (Step-by-Step)
 
-1. Create a new Discord application at the Discord Developer Portal.
-2. Create a bot user for the application.
-3. Enable required bot scopes and permissions:
-	 - Scopes: `bot`, `applications.commands`
-	 - Bot permissions (recommended baseline):
-		 - View Channels
-		 - Send Messages
-		 - Embed Links
-		 - Use Slash Commands
-		 - Read Message History
-4. Copy your Bot Token into `DISCORD_TOKEN`.
-5. Copy your Application ID into `DISCORD_CLIENT_ID`.
+Use these exact steps in the Discord Developer Portal so new users can self-host quickly.
+
+1. Go to https://discord.com/developers/applications
+2. Click **New Application**.
+3. Enter a name (for example, `CS2 RCON Bot`) and click **Create**.
+4. In **General Information**:
+	- Copy **Application ID** and set it as `DISCORD_CLIENT_ID` in `.env`.
+5. In **Bot** (left sidebar):
+	- Click **Add Bot** and confirm.
+	- Under **Token**, click **Reset Token** (or **Copy**) and set it as `DISCORD_TOKEN` in `.env`.
+	- Keep this token secret. Anyone with it can control your bot.
+6. In **Bot** settings, enable these toggles:
+	- `PUBLIC BOT` enabled (if you want other servers to invite your hosted bot)
+	- `MESSAGE CONTENT INTENT` is not required for this project
+	- `SERVER MEMBERS INTENT` is not required for this project
+	- `PRESENCE INTENT` is not required for this project
+7. In **OAuth2 -> URL Generator**:
+	- Select scopes: `bot` and `applications.commands`
+	- Select bot permissions (recommended baseline):
+		- View Channels
+		- Send Messages
+		- Embed Links
+		- Use Slash Commands
+		- Read Message History
+	- Copy generated URL and open it to invite the bot to your server.
+8. After invite, run your container and wait up to a minute for global slash command propagation.
+9. In your Discord server, run `/setup` to finish guild-specific CS2 setup.
 
 Invite URL template:
 
