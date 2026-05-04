@@ -92,6 +92,32 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
+## One-Command Install (No Git Clone)
+
+If you want users to install with one command and follow a terminal wizard:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/beaudenison/cs2-rcon-bot/main/install.sh | bash
+```
+
+What this does:
+
+- Prompts for bot token and client ID
+- Optionally enables encrypted-at-rest RCON password storage
+- Writes `.env` and `docker-compose.yml` to `~/cs2-rcon-bot`
+- Pulls the prebuilt Docker image from GHCR
+- Starts the container automatically
+
+This works best after your GitHub Actions image publish workflow has produced `ghcr.io/beaudenison/cs2-rcon-bot:latest`.
+
+You can also run the installer with a custom target directory or image:
+
+```bash
+CS2_RCON_BOT_DIR=/opt/cs2-rcon-bot \
+CS2_RCON_BOT_IMAGE=ghcr.io/beaudenison/cs2-rcon-bot:latest \
+curl -fsSL https://raw.githubusercontent.com/beaudenison/cs2-rcon-bot/main/install.sh | bash
+```
+
 Stop/restart commands:
 
 ```bash
@@ -162,6 +188,21 @@ To offer your hosted bot to others:
 1. Deploy this project once (Docker on a VPS, cloud VM, or container service).
 2. Share your bot invite link.
 3. Keep `data` volume persistent so guild configurations survive restarts.
+
+## Publishing Docker Image for One-Command Installs
+
+This repo includes a workflow at `.github/workflows/publish-image.yml` that publishes:
+
+- `ghcr.io/beaudenison/cs2-rcon-bot:latest` (on pushes to main)
+- tag versions (when you push tags like `v1.0.0`)
+
+To enable public pulls from GHCR:
+
+1. Go to your repository packages in GitHub.
+2. Open the published container package.
+3. Set visibility to public.
+
+Once public, anyone can run the one-command installer without cloning the repo.
 
 ## Security Notes
 
