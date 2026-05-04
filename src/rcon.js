@@ -1,6 +1,30 @@
 const { Rcon } = require("rcon-client");
 const { MODE_LOOKUP } = require("./constants");
 
+const DEFAULT_COMMAND_TIMEOUT_MS = Number(process.env.RCON_COMMAND_TIMEOUT_MS || 5000);
+
+function withTimeout(promise, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then((result) => {
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+async function sendWithTimeout(rcon, command, timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS) {
+  return withTimeout(rcon.send(command), timeoutMs, `RCON command '${command}'`);
+}
+
 async function withRcon(config, fn) {
   const rcon = await Rcon.connect({
     host: config.rconHost,
@@ -12,7 +36,7 @@ async function withRcon(config, fn) {
   try {
     return await fn(rcon);
   } finally {
-    await rcon.end().catch(() => undefined);
+    await withTimeout(rcon.end(), 2000, "RCON disconnect").catch(() => undefined);
   }
 }
 
@@ -20,7 +44,7 @@ async function runCommands(config, commands) {
   return withRcon(config, async (rcon) => {
     const output = [];
     for (const command of commands) {
-      const result = await rcon.send(command);
+      const result = await sendWithTimeout(rcon, command);
       output.push({ command, result });
     }
     return output;
@@ -58,9 +82,19 @@ function parseConvarValue(response) {
 
 async function queryServerStatus(config) {
   return withRcon(config, async (rcon) => {
-    const statusRaw = await rcon.send("status");
-    const gameTypeRaw = await rcon.send("game_type");
-    const gameModeRaw = await rcon.send("game_mode");
+    const [statusResult, gameTypeResult, gameModeResult] = await Promise.allSettled([
+      sendWithTimeout(rcon, "status"),
+      sendWithTimeout(rcon, "game_type"),
+      sendWithTimeout(rcon, "game_mode")
+    ]);
+
+    const statusRaw = statusResult.status === "fulfilled" ? statusResult.value : "";
+    const gameTypeRaw = gameTypeResult.status === "fulfilled" ? gameTypeResult.value : "";
+    const gameModeRaw = gameModeResult.status === "fulfilled" ? gameModeResult.value : "";
+
+    if (!statusRaw && !gameTypeRaw && !gameModeRaw) {
+      throw new Error("RCON status query did not return a response.");
+    }
 
     const { map, players } = parseStatusText(statusRaw || "");
     const gameType = parseConvarValue(gameTypeRaw || "");
