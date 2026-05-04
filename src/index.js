@@ -740,6 +740,8 @@ client.on("interactionCreate", async (interaction) => {
     const existingConfig = store.get(guildId);
     const channelChanged = existingConfig?.controlChannelId !== current.channelId;
 
+    await interaction.deferReply({ ephemeral: true });
+
     const savedConfig = store.upsert(guildId, {
       guildId,
       controlChannelId: current.channelId,
@@ -755,14 +757,12 @@ client.on("interactionCreate", async (interaction) => {
 
     try {
       await postOrUpdateControlCenter(guildId);
-      await interaction.reply({
+      await interaction.editReply({
         content: `Saved. Control center is now configured for <#${savedConfig.controlChannelId}>.`,
-        ephemeral: true
       });
     } catch (error) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `Settings saved, but refreshing the control center failed: ${error.message}`,
-        ephemeral: true
       });
     }
 
@@ -892,6 +892,8 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    await interaction.deferReply({ ephemeral: true });
+
     const savedConfig = store.upsert(guildId, {
       guildId,
       controlChannelId: current.channelId,
@@ -907,14 +909,12 @@ client.on("interactionCreate", async (interaction) => {
 
     try {
       await postOrUpdateControlCenter(guildId);
-      await interaction.reply({
+      await interaction.editReply({
         content: `Setup completed. Control center created in <#${savedConfig.controlChannelId}>.`,
-        ephemeral: true
       });
     } catch (error) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `Setup saved, but creating the control center failed: ${error.message}`,
-        ephemeral: true
       });
     }
 
@@ -935,8 +935,10 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    await interaction.deferReply({ ephemeral: true });
+
     await postOrUpdateControlCenter(guildId).catch(() => undefined);
-    await interaction.reply({ content: "Status refreshed.", ephemeral: true });
+    await interaction.editReply({ content: "Status refreshed." });
     return;
   }
 
@@ -962,17 +964,17 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    await interaction.deferReply({ ephemeral: true });
+
     try {
       await runCommands(guildConfig, commandsToRun);
       await postOrUpdateControlCenter(guildId).catch(() => undefined);
-      await interaction.reply({
+      await interaction.editReply({
         content: `Executed ${commandsToRun.length} command(s): ${commandsToRun.join(", ")}`,
-        ephemeral: true
       });
     } catch (error) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `RCON command failed: ${error.message}`,
-        ephemeral: true
       });
     }
   }
